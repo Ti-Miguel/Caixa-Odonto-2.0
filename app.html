@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Caixa & Planos</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%2361c1d0'/%3E%3Ctext x='32' y='39' font-size='28' text-anchor='middle' fill='white' font-family='Arial'%3EC%3C/text%3E%3C/svg%3E">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand"><div class="dot"></div><span>Caixa & Planos</span></div>
+
+    <nav class="tabs" aria-label="Navegação de abas">
+      <button class="tab-btn active" data-tab="fechamento" aria-controls="fechamento" aria-selected="true">Fechamento</button>
+      <button class="tab-btn" data-tab="relatorios" aria-controls="relatorios" aria-selected="false">Relatórios</button>
+      <button class="tab-btn" data-tab="dashboard" aria-controls="dashboard" aria-selected="false">Dashboard</button>
+      <button class="tab-btn" data-tab="planos" aria-controls="planos" aria-selected="false">Planos</button>
+    </nav>
+
+    <div class="userbox">
+      <span id="currentUser"></span>
+      <button id="logoutBtn" class="btn btn-ghost">Sair</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- FECHAMENTO -->
+    <section id="fechamento" class="tab-panel active">
+      <h2>Fechamento de Caixa</h2>
+      <form id="fechamentoForm" class="card grid grid-3">
+        <label class="field"><span>Data (auto)</span><input type="date" id="fcData" readonly /></label>
+        <label class="field"><span>Dinheiro (R$)</span><input id="fcDinheiro" inputmode="decimal" /></label>
+        <label class="field"><span>PIX (R$)</span><input id="fcPix" inputmode="decimal" /></label>
+        <label class="field"><span>C. Débito (R$)</span><input id="fcDebito" inputmode="decimal" /></label>
+        <label class="field"><span>C. Crédito (R$)</span><input id="fcCredito" inputmode="decimal" /></label>
+        <label class="field"><span>Boletos (R$)</span><input id="fcBoletos" inputmode="decimal" /></label>
+        <label class="field"><span>Total (auto)</span><input id="fcTotal" readonly /></label>
+
+        <!-- Quantidades de planos -->
+        <label class="field"><span>Plano Life (qtd.)</span><input type="number" id="fcPlano" min="0" value="0" /></label>
+        <label class="field"><span>Plano Life Orto (qtd.)</span><input type="number" id="fcOrto" min="0" value="0" /></label>
+        <label class="field"><span>Orto (qtd.)</span><input type="number" id="fcOrtoApenas" min="0" value="0" /></label>
+
+        <label class="field col-span-2"><span>Observação</span><input id="fcObs" /></label>
+        <!-- Exibição do usuário logado -->
+        <label class="field"><span>Quem fecha</span>
+          <input id="fcQuemDisplay" readonly />
+        </label>
+
+        <div class="col-span-3 actions actions-sticky">
+          <button type="button" id="calcTotal" class="btn btn-ghost btn-lg">Recalcular</button>
+          <button type="submit" class="btn btn-primary btn-lg">Salvar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- RELATÓRIOS -->
+    <section id="relatorios" class="tab-panel" hidden>
+      <h2>Relatórios</h2>
+
+      <details class="card relatorios-filtros" open>
+        <summary>Filtros</summary>
+        <div class="filters-bar">
+          <div class="field"><span>Data inicial</span><input type="date" id="fDataIni" /></div>
+          <div class="field"><span>Data final</span><input type="date" id="fDataFim" /></div>
+          <div class="field"><span>Quem fechou</span><select id="fQuem"><option value="">Todos</option></select></div>
+          <div class="field">
+            <span>Plano</span>
+            <select id="fPlanoTipo">
+              <option value="">Todos</option>
+              <option value="life">Plano Life</option>
+              <option value="life-orto">Plano Life Orto</option>
+              <option value="orto-puro">Orto</option>
+            </select>
+          </div>
+          <div class="actions-row">
+            <button id="btnAplicarFiltros" class="btn btn-primary btn-sm" type="button">Aplicar</button>
+            <button id="btnLimparFiltros" class="btn btn-ghost btn-sm" type="button">Limpar</button>
+            <button id="btnExportarCSV" class="btn btn-outline btn-sm" type="button">Exportar CSV</button>
+          </div>
+        </div>
+      </details>
+
+      <div class="card" style="margin-top:18px">
+        <div class="table-wrap">
+          <table class="table" id="relTabela">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Quem</th>
+                <th>Dinheiro</th>
+                <th>PIX</th>
+                <th>Débito</th>
+                <th>Crédito</th>
+                <th>Boletos</th>
+                <th>Total</th>
+                <th>Plano Life</th>
+                <th>Plano Life Orto</th>
+                <th>Orto</th>
+                <th>Obs.</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <th colspan="2" style="text-align:right">Totais:</th>
+                <th id="sumDinheiro">R$ 0,00</th>
+                <th id="sumPix">R$ 0,00</th>
+                <th id="sumDebito">R$ 0,00</th>
+                <th id="sumCredito">R$ 0,00</th>
+                <th id="sumBoletos">R$ 0,00</th>
+                <th id="sumTotal"><strong>R$ 0,00</strong></th>
+                <th id="sumLife">0</th>
+                <th id="sumOrto">0</th>
+                <th id="sumOrtoPuro">0</th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="tab-panel" hidden>
+      <h2>Dashboard</h2>
+      <div class="grid grid-2">
+        <div class="card"><h3>Composição</h3><canvas id="chartPagamentos"></canvas></div>
+        <div class="card"><h3>Totais por Dia</h3><canvas id="chartDiario"></canvas></div>
+      </div>
+    </section>
+
+    <!-- PLANOS -->
+    <section id="planos" class="tab-panel" hidden>
+      <h2>Vendas de Planos</h2>
+
+      <form id="planosForm" class="card grid grid-3">
+        <label class="field"><span>Nome Paciente</span><input id="plNome" required /></label>
+        <label class="field"><span>CPF</span><input id="plCPF" /></label>
+        <label class="field"><span>Telefone</span><input id="plTelefone" /></label>
+        <label class="field"><span>Plano</span>
+          <select id="plPlano">
+            <option>Plano Life</option>
+            <option>Plano Life Orto</option>
+            <option>Orto</option>
+          </select>
+        </label>
+        <!-- Exibição do usuário logado -->
+        <label class="field"><span>Quem fechou</span>
+          <input id="plQuemDisplay" readonly />
+        </label>
+
+        <div class="col-span-3 actions buttons-inline">
+          <button class="btn btn-primary" type="submit">Salvar</button>
+          <button id="plExportCSV" class="btn btn-outline" type="button">Exportar CSV</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <table class="table" id="plTabela">
+          <thead>
+            <tr>
+              <th>Data</th><th>Nome</th><th>CPF</th>
+              <th>Telefone</th><th>Plano</th><th>Quem</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">Feito com ♥ — AmorSaúde Maringá</footer>
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login • Caixa & Planos</title>
+      <link rel="icon" type="image/jpeg" href="logo.jpeg" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <h1>Caixa & Planos</h1>
+    <p class="subtitle">Acesse para continuar</p>
+
+    <form id="loginForm" class="grid gap-12">
+      <label class="field">
+        <span>Email</span>
+        <input id="email" type="email" required />
+      </label>
+      <label class="field">
+        <span>Senha</span>
+        <input id="password" type="password" required />
+      </label>
+      <button class="btn btn-primary btn-lg" type="submit">Entrar</button>
+      <p id="loginErr" style="color:#c0392b;margin:0"></p>
+    </form>
+  </main>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const err = document.getElementById('loginErr'); err.textContent='';
+
+      try{
+        const r = await fetch('auth/login.php', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({email, password})
+        });
+        const j = await r.json();
+        if(!r.ok){ err.textContent = j.error || 'Falha no login'; return; }
+
+        // guarda só para mostrar no header (o servidor controla o acesso)
+        localStorage.setItem('currentUser', j.name);
+        location.href = 'app.html';
+      }catch(e){
+        err.textContent = 'Erro de rede';
+      }
+    });
+  </script>
+</body>
+</html>
