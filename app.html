@@ -30,7 +30,7 @@
     <section id="fechamento" class="tab-panel active">
       <h2>Fechamento de Caixa</h2>
       <form id="fechamentoForm" class="card grid grid-3">
-        <label class="field"><span>Data (auto)</span><input type="date" id="fcData" readonly /></label>
+        <label class="field"><span>Data (auto)</span><input type="date" id="fcData" /></label>
         <label class="field"><span>Dinheiro (R$)</span><input id="fcDinheiro" inputmode="decimal" /></label>
         <label class="field"><span>PIX (R$)</span><input id="fcPix" inputmode="decimal" /></label>
         <label class="field"><span>C. Débito (R$)</span><input id="fcDebito" inputmode="decimal" /></label>
@@ -54,7 +54,53 @@
           <button type="submit" class="btn btn-primary btn-lg">Salvar</button>
         </div>
       </form>
+       <!-- LISTA DO DIA -->
+<div class="card" id="fechamentosDia" style="margin-top:16px">
+  <h3 style="margin-top:0">Fechamentos do dia</h3>
+  <div class="table-wrap">
+    <table class="table" id="diaTabela">
+      <thead>
+        <tr>
+          <th>Hora</th>
+          <th>Quem</th>
+          <th>Dinheiro</th>
+          <th>PIX</th>
+          <th>Débito</th>
+          <th>Crédito</th>
+          <th>Boletos</th>
+          <th>Total</th>
+          <th>Plano</th>
+          <th>Life Orto</th>
+          <th>Orto</th>
+          <th>Obs.</th>
+          <th style="min-width:120px">Ações</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2" style="text-align:right">Totais:</th>
+          <th id="diaDinheiro">R$ 0,00</th>
+          <th id="diaPix">R$ 0,00</th>
+          <th id="diaDebito">R$ 0,00</th>
+          <th id="diaCredito">R$ 0,00</th>
+          <th id="diaBoletos">R$ 0,00</th>
+          <th id="diaTotal"><strong>R$ 0,00</strong></th>
+          <th id="diaLife">0</th>
+          <th id="diaLifeOrto">0</th>
+          <th id="diaOrto">0</th>
+          <th></th>
+          <th></th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+
     </section>
+
+   
 
     <!-- RELATÓRIOS -->
     <section id="relatorios" class="tab-panel" hidden>
@@ -171,6 +217,30 @@
       </div>
     </section>
   </main>
+
+    <dialog id="editFechDialog" style="border:none;border-radius:16px;padding:0;max-width:720px;width:min(720px,90vw)">
+  <form method="dialog" id="editFechForm" class="card grid grid-3" style="margin:0">
+    <input type="hidden" id="efId" />
+    <label class="field"><span>Data</span><input type="date" id="efData" required /></label>
+    <label class="field"><span>Dinheiro (R$)</span><input id="efDinheiro" inputmode="decimal" /></label>
+    <label class="field"><span>PIX (R$)</span><input id="efPix" inputmode="decimal" /></label>
+    <label class="field"><span>C. Débito (R$)</span><input id="efDebito" inputmode="decimal" /></label>
+    <label class="field"><span>C. Crédito (R$)</span><input id="efCredito" inputmode="decimal" /></label>
+    <label class="field"><span>Boletos (R$)</span><input id="efBoletos" inputmode="decimal" /></label>
+    <label class="field"><span>Total (R$)</span><input id="efTotal" inputmode="decimal" /></label>
+
+    <label class="field"><span>Plano Life (qtd.)</span><input type="number" id="efPlano" min="0" /></label>
+    <label class="field"><span>Plano Life Orto (qtd.)</span><input type="number" id="efOrto" min="0" /></label>
+    <label class="field"><span>Orto (qtd.)</span><input type="number" id="efOrtoPuro" min="0" /></label>
+
+    <label class="field col-span-2"><span>Observação</span><input id="efObs" /></label>
+    <div class="actions col-span-3">
+      <button type="button" id="efCancel" class="btn btn-ghost">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar alterações</button>
+    </div>
+  </form>
+</dialog>
+
 
   <script src="script.js"></script>
 </body>

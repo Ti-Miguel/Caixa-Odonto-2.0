@@ -29,7 +29,6 @@ async function apiPost(url,data){
 /* ========= Preenche usuário logado ========= */
 function fillLoggedUserFields(me, tries = 8){
   const name = me?.name || me?.displayName || me || "";
-  console.log("[fillLoggedUserFields] start", { name, tries });
   if (!name) return;
 
   const headerUser = document.getElementById("currentUser");
@@ -42,9 +41,6 @@ function fillLoggedUserFields(me, tries = 8){
     el.value = name;
     el.defaultValue = name;
     el.placeholder = name;
-    console.log(`[fillLoggedUserFields] set ${id} =`, el.value);
-    el.addEventListener("input", ()=> console.warn(`[watch] input em #${id}:`, el.value));
-    el.addEventListener("change", ()=> console.warn(`[watch] change em #${id}:`, el.value));
     return true;
   };
 
@@ -55,7 +51,6 @@ function fillLoggedUserFields(me, tries = 8){
     requestAnimationFrame(()=> fillLoggedUserFields(me, tries-1));
   }
 
-  // Observa alterações do DOM nesses campos
   ["fcQuemDisplay","plQuemDisplay"].forEach(id=>{
     const el = document.getElementById(id);
     if (!el) return;
@@ -81,15 +76,13 @@ document.addEventListener("DOMContentLoaded", async ()=>{
 
   // Observa resets
   document.getElementById("fechamentoForm")?.addEventListener("reset",()=>{
-    console.warn("[reset] fechamentoForm");
     setTimeout(()=> fillLoggedUserFields(window.__me_cached),0);
   });
   document.getElementById("planosForm")?.addEventListener("reset",()=>{
-    console.warn("[reset] planosForm");
     setTimeout(()=> fillLoggedUserFields(window.__me_cached),0);
   });
 
-  // reforço automático temporário
+  // reforço temporário
   let _i=0; const _timer=setInterval(()=>{
     const top=document.getElementById("currentUser")?.textContent?.trim();
     if(top){
@@ -130,12 +123,16 @@ document.addEventListener("DOMContentLoaded", async ()=>{
   initRelatorios();
   initPlanos(me);
   renderDashboard();
+
+  // Primeira carga da lista do dia
+  const diaInicial = document.getElementById("fcData")?.value || todayISO();
+  loadFechamentosDoDia(diaInicial);
 });
 
 /* ========= Fechamento ========= */
 function initFechamento(me){
   const fcData=document.getElementById("fcData");
-  if(fcData) fcData.value=todayISO();
+  if(fcData && !fcData.value) fcData.value=todayISO();
   fillLoggedUserFields(me);
 
   const ids=["fcDinheiro","fcPix","fcDebito","fcCredito","fcBoletos"];
@@ -152,8 +149,20 @@ function initFechamento(me){
   }));
   document.getElementById("calcTotal")?.addEventListener("click",calcTotal);
 
+  // recarrega lista do dia ao mudar a data
+  fcData?.addEventListener("change",(e)=>{
+    const dia = e.target.value || todayISO();
+    loadFechamentosDoDia(dia);
+  });
+
   const form=document.getElementById("fechamentoForm");
   if(!form) return;
+
+  const afterSaveReload = async ()=>{
+    const dia = document.getElementById("fcData")?.value || todayISO();
+    await loadFechamentosDoDia(dia);
+  };
+
   form.addEventListener("submit",async e=>{
     e.preventDefault(); calcTotal();
     const payload={
@@ -172,11 +181,190 @@ function initFechamento(me){
     try{
       await apiPost(urlApi("fechamentos_create.php"),payload);
       form.reset(); fillLoggedUserFields(me);
-      if(fcData) fcData.value=todayISO();
+      if(fcData) fcData.value=payload.data || todayISO();
       ["fcPlano","fcOrto","fcOrtoApenas"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=0;});
       alert("Fechamento salvo!");
+      await afterSaveReload();
     }catch(err){ alert("Erro ao salvar: "+err.message); }
   });
+}
+
+/* ========= Lista do dia (aba Fechamento) ========= */
+async function loadFechamentosDoDia(diaISO){
+  const body = document.querySelector("#diaTabela tbody");
+  if(!body) return;
+
+  // Garante que estamos usando a data do input, se existir
+  const dataInput = document.getElementById("fcData")?.value;
+  const dia = (diaISO || dataInput || todayISO());
+
+  body.innerHTML = "<tr><td colspan='13'>Carregando...</td></tr>";
+
+  try{
+    const qs = new URLSearchParams({ ini: dia, fim: dia });
+    const url = urlApi("fechamentos_list.php") + "?" + qs.toString();
+    const rows = await apiGet(url);
+
+    console.log("[loadFechamentosDoDia]", { dia, url, rowsCount: rows.length });
+
+    body.innerHTML = "";
+
+    if (!rows.length){
+      body.innerHTML = "<tr><td colspan='13'>Nenhum fechamento encontrado para este dia.</td></tr>";
+      // zera totais do rodapé
+      const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent = val; };
+      set("diaDinheiro", "R$ 0,00");
+      set("diaPix",      "R$ 0,00");
+      set("diaDebito",   "R$ 0,00");
+      set("diaCredito",  "R$ 0,00");
+      set("diaBoletos",  "R$ 0,00");
+      set("diaTotal",    "R$ 0,00");
+      set("diaLife",     0);
+      set("diaLifeOrto", 0);
+      set("diaOrto",     0);
+      return;
+    }
+
+    const tot = {dinheiro:0,pix:0,debito:0,credito:0,boletos:0,total:0,plano:0,orto:0,orto_puro:0};
+
+    rows.forEach(r=>{
+      tot.dinheiro += +r.dinheiro||0;
+      tot.pix      += +r.pix||0;
+      tot.debito   += +r.debito||0;
+      tot.credito  += +r.credito||0;
+      tot.boletos  += +r.boletos||0;
+      tot.total    += +r.total||0;
+      tot.plano    += +r.plano||0;
+      tot.orto     += +r.orto||0;
+      tot.orto_puro+= +r.orto_puro||0;
+
+      const tr = document.createElement("tr");
+      // tenta created_at; se não vier, mostra "--:--"
+      const hora = (r.created_at?.split(" ")[1]?.slice(0,5)) || "--:--";
+
+      const cells = [
+        hora, r.quem,
+        brl(r.dinheiro), brl(r.pix), brl(r.debito), brl(r.credito), brl(r.boletos), brl(r.total),
+        Number(r.plano||0), Number(r.orto||0), Number(r.orto_puro||0),
+        r.obs||"-"
+      ];
+      cells.forEach((v,i)=>{
+        const td=document.createElement("td");
+        td.textContent=v;
+        if(i===7) td.style.fontWeight="700";
+        tr.appendChild(td);
+      });
+
+      const tdAcoes = document.createElement("td");
+      tdAcoes.innerHTML = `
+        <button class="btn btn-sm" data-act="edit" data-id="${r.id}">Editar</button>
+        <button class="btn btn-sm btn-outline" data-act="del" data-id="${r.id}">Excluir</button>
+      `;
+      tr.appendChild(tdAcoes);
+
+      tr.dataset.row = JSON.stringify(r);
+      body.appendChild(tr);
+    });
+
+    // Totais rodapé
+    const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent = val; };
+    set("diaDinheiro", brl(tot.dinheiro));
+    set("diaPix",      brl(tot.pix));
+    set("diaDebito",   brl(tot.debito));
+    set("diaCredito",  brl(tot.credito));
+    set("diaBoletos",  brl(tot.boletos));
+    set("diaTotal",    brl(tot.total));
+    set("diaLife",     tot.plano);
+    set("diaLifeOrto", tot.orto);
+    set("diaOrto",     tot.orto_puro);
+
+  }catch(e){
+    console.error("[loadFechamentosDoDia][ERROR]", e);
+    body.innerHTML = "<tr><td colspan='13'>Erro ao carregar.</td></tr>";
+  }
+}
+
+
+/* ========= Delegação para Editar / Excluir (lista do dia) ========= */
+document.addEventListener("click", async (ev)=>{
+  const btn = ev.target.closest("[data-act]");
+  if(!btn) return;
+
+  const act = btn.dataset.act;
+  const id  = Number(btn.dataset.id||0);
+  if(!id) return;
+
+  if(act === "edit"){
+    const tr = btn.closest("tr");
+    const r  = tr?.dataset?.row ? JSON.parse(tr.dataset.row) : null;
+    if(!r) return;
+    openEditFechDialog(r);
+  }
+
+  if(act === "del"){
+    if(!confirm("Deseja realmente excluir este fechamento?")) return;
+    try{
+      await apiPost(urlApi("fechamentos_delete.php"), { id });
+      const dia = document.getElementById("fcData")?.value || todayISO();
+      await loadFechamentosDoDia(dia);
+      alert("Fechamento excluído!");
+    }catch(e){
+      alert("Erro ao excluir: " + e.message);
+    }
+  }
+});
+
+/* ========= Modal de edição ========= */
+function fillEditField(id, val){ const el=document.getElementById(id); if(el) el.value = val ?? ""; }
+
+function openEditFechDialog(row){
+  const dlg = document.getElementById("editFechDialog");
+  if(!dlg) return;
+  fillEditField("efId",        row.id);
+  fillEditField("efData",      row.data);
+  fillEditField("efDinheiro",  (Number(row.dinheiro)||0).toLocaleString("pt-BR",{minimumFractionDigits:2}));
+  fillEditField("efPix",       (Number(row.pix)||0).toLocaleString("pt-BR",{minimumFractionDigits:2}));
+  fillEditField("efDebito",    (Number(row.debito)||0).toLocaleString("pt-BR",{minimumFractionDigits:2}));
+  fillEditField("efCredito",   (Number(row.credito)||0).toLocaleString("pt-BR",{minimumFractionDigits:2}));
+  fillEditField("efBoletos",   (Number(row.boletos)||0).toLocaleString("pt-BR",{minimumFractionDigits:2}));
+  fillEditField("efTotal",     (Number(row.total)||0).toLocaleString("pt-BR",{minimumFractionDigits:2}));
+  fillEditField("efPlano",     row.plano||0);
+  fillEditField("efOrto",      row.orto||0);
+  fillEditField("efOrtoPuro",  row.orto_puro||0);
+  fillEditField("efObs",       row.obs||"");
+
+  document.getElementById("efCancel")?.addEventListener("click", ()=> dlg.close(), { once:true });
+
+  const form = document.getElementById("editFechForm");
+  form.onsubmit = async (e)=>{
+    e.preventDefault();
+
+    const payload = {
+      id: Number(document.getElementById("efId").value),
+      data: document.getElementById("efData").value,
+      dinheiro: parseBRL(document.getElementById("efDinheiro").value),
+      pix:      parseBRL(document.getElementById("efPix").value),
+      debito:   parseBRL(document.getElementById("efDebito").value),
+      credito:  parseBRL(document.getElementById("efCredito").value),
+      boletos:  parseBRL(document.getElementById("efBoletos").value),
+      total:    parseBRL(document.getElementById("efTotal").value),
+      plano:    toInt(document.getElementById("efPlano").value),
+      orto:     toInt(document.getElementById("efOrto").value),
+      orto_puro:toInt(document.getElementById("efOrtoPuro").value),
+      obs: (document.getElementById("efObs").value||"").trim()
+    };
+    try{
+      await apiPost(urlApi("fechamentos_update.php"), payload);
+      dlg.close();
+      const dia = document.getElementById("fcData")?.value || todayISO();
+      await loadFechamentosDoDia(dia);
+      alert("Fechamento atualizado!");
+    }catch(err){
+      alert("Erro ao atualizar: " + err.message);
+    }
+  };
+
+  dlg.showModal();
 }
 
 /* ========= Relatórios ========= */
@@ -191,13 +379,44 @@ async function buildRelatorioRows(){
   return apiGet(urlApi("fechamentos_list.php")+(qs.toString()?'?'+qs.toString():''));
 }
 
+// ===== Relatórios com paginação =====
+let relatorioRows = [];    // dados carregados
+let relatorioPage = 1;     // página atual
+const relatorioPerPage = 50; // 50 lançamentos por página
+
 async function aplicarFiltrosRelatorios(){
   const body=document.querySelector("#relTabela tbody");
   if(!body)return;
   body.innerHTML="<tr><td colspan='12'>Carregando...</td></tr>";
-  const rows=await buildRelatorioRows();
-  body.innerHTML="";
-  const sum=rows.reduce((a,r)=>({
+
+  try{
+    relatorioRows = await buildRelatorioRows();
+    relatorioPage = 1;
+    renderPaginaRelatorios();
+  }catch(e){
+    console.error(e);
+    body.innerHTML="<tr><td colspan='12'>Erro ao carregar relatórios.</td></tr>";
+  }
+}
+
+function renderPaginaRelatorios(){
+  const body=document.querySelector("#relTabela tbody");
+  if(!body)return;
+
+  const start = (relatorioPage-1)*relatorioPerPage;
+  const end = start + relatorioPerPage;
+  const rows = relatorioRows.slice(start,end);
+
+  body.innerHTML = "";
+
+  if(!rows.length){
+    body.innerHTML="<tr><td colspan='12'>Nenhum registro encontrado.</td></tr>";
+    document.getElementById("relPaginacao")?.remove();
+    return;
+  }
+
+  // Totais gerais
+  const sum=relatorioRows.reduce((a,r)=>({
     dinheiro:a.dinheiro+Number(r.dinheiro||0),
     pix:a.pix+Number(r.pix||0),
     debito:a.debito+Number(r.debito||0),
@@ -219,6 +438,7 @@ async function aplicarFiltrosRelatorios(){
   setText("sumOrto",sum.orto);
   setText("sumOrtoPuro",sum.orto_puro);
 
+  // Render linhas da página
   rows.forEach(r=>{
     const tr=document.createElement("tr");
     [r.data,r.quem,brl(r.dinheiro),brl(r.pix),brl(r.debito),brl(r.credito),brl(r.boletos),brl(r.total),
@@ -227,7 +447,34 @@ async function aplicarFiltrosRelatorios(){
     });
     body.appendChild(tr);
   });
+
+  // ======= Paginação =======
+  let pagDiv = document.getElementById("relPaginacao");
+  if(!pagDiv){
+    pagDiv = document.createElement("div");
+    pagDiv.id = "relPaginacao";
+    pagDiv.className = "paginacao-bar";
+    body.parentElement.parentElement.appendChild(pagDiv);
+  }
+
+  const totalPages = Math.ceil(relatorioRows.length / relatorioPerPage);
+  pagDiv.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+      <button class="btn btn-sm" id="relPrev" ${relatorioPage<=1?'disabled':''}>◀ Anterior</button>
+      <span>Página ${relatorioPage} de ${totalPages} (${relatorioRows.length} lançamentos)</span>
+      <button class="btn btn-sm" id="relNext" ${relatorioPage>=totalPages?'disabled':''}>Próxima ▶</button>
+    </div>
+  `;
+
+  document.getElementById("relPrev")?.addEventListener("click",()=>{
+    if(relatorioPage>1){ relatorioPage--; renderPaginaRelatorios(); }
+  });
+  document.getElementById("relNext")?.addEventListener("click",()=>{
+    const totalPages = Math.ceil(relatorioRows.length / relatorioPerPage);
+    if(relatorioPage<totalPages){ relatorioPage++; renderPaginaRelatorios(); }
+  });
 }
+
 
 /* Popula o select de "Quem fechou" com nomes distintos vindos da API */
 async function populateSelectQuem() {
@@ -250,8 +497,6 @@ function initRelatorios(){
     aplicarFiltrosRelatorios();
   });
   document.getElementById("btnExportarCSV")?.addEventListener("click",()=>window.location.href=urlApi("fechamentos_csv.php"));
-
-  // Primeiro popula o select com os nomes; depois aplica os filtros para a primeira renderização.
   populateSelectQuem().then(aplicarFiltrosRelatorios);
 }
 

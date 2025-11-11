@@ -151,3 +151,14 @@ input[readonly]{
   cursor: not-allowed;
 }
 
+.paginacao-bar {
+  text-align:center;
+  margin-top:8px;
+  font-weight:600;
+  color:#0b2a33;
+}
+.paginacao-bar button[disabled] {
+  opacity:0.5;
+  cursor:not-allowed;
+}
+

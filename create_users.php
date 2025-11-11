@@ -23,8 +23,10 @@ $usuarios = [
 
   // Recepcionistas: visualizam apenas os próprios lançamentos
   ['name' => 'Adriany',    'email' => 'adriannyrocha21@gmail.com', 'can_view_all' => 0],
-  // Você pode incluir mais:
-  // ['name' => 'Elaine',      'email' => 'elaine@amorsaude.com',    'can_view_all' => 0],
+  ['name' => 'Yasmin',    'email' => 'yasminmessias792@gmail.com', 'can_view_all' => 0],
+  ['name' => 'Rita',    'email' => 'rcml.cassia@gmail.com', 'can_view_all' => 0],
+  ['name' => 'Evelyn',    'email' => 'evv.13kay@gmail.com', 'can_view_all' => 0],
+  ['name' => 'Dhully',    'email' => 'dhully.7d@gmail.com', 'can_view_all' => 0],
   // ['name' => 'Joyce',       'email' => 'joyce@amorsaude.com',     'can_view_all' => 0],
 ];
 
